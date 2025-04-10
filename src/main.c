@@ -40,6 +40,7 @@ typedef struct {
 } Vector2;
 
 typedef struct Node {
+	struct Node *prev;
 	struct Node *next;
 	Vector2 position;
 } Node;
@@ -50,6 +51,11 @@ typedef struct {
 	char body;
 	Vector2 direction;
 } Snake;
+
+typedef struct {
+	Vector2 position;
+	char body;
+} Apple;
 
 MenuChoice label_to_choice(const char *label) {
     if (strcmp(label, "Start") == 0) {
@@ -62,6 +68,9 @@ MenuChoice label_to_choice(const char *label) {
 }
 
 int main(void) {
+	/* Seed rand */
+	srand(time(NULL));
+
 	/* Initialise ncurses */
 	initscr();
 	start_color();
@@ -133,6 +142,7 @@ int main(void) {
 
 	GameState state = STATE_MENU;
 	Snake *snake = NULL;
+	Apple *apple = NULL;
 
 	/* Main loop */
 	int ch;
@@ -162,10 +172,18 @@ int main(void) {
 								
 								Node *head = malloc(sizeof(*head));
 								head->position = (Vector2){2, 2};
+								head->prev = NULL;
 								head->next = NULL;
 
 								snake->head = head;
 								snake->tail = head;
+										
+								/* Create apple */ 
+								apple = malloc(sizeof(*apple));
+								int y = rand() % (height - 1) + 1;
+								int x = rand() % (width - + 1) + 1; 
+								apple->position = (Vector2){y, x};
+								apple->body = 'o';
 
 								/* Wipe window */
 								int height, width;
@@ -203,16 +221,7 @@ int main(void) {
 					state = STATE_PAUSE;
 					break;
 				case 'q':
-					//state = STATE_MENU;
-					Node *prev = snake->tail;
-					Node *current = malloc(sizeof(*current));
-					current->position = (Vector2){
-						prev->position.y + (snake->direction.y * -1),
-						prev->position.x + (snake->direction.x * -1)
-					};
-					current->next = NULL;
-					prev->next = current;
-					snake->tail = current;
+					state = STATE_MENU;
 					
 					break;
 			}
@@ -240,19 +249,16 @@ int main(void) {
 			}
 
 			/* Move snake nodes */
-			Node *current = snake->head;
-			Vector2 prev = snake->head->position;
-			while (current->next != NULL) {
-				Vector2 temp = current->position;
-				current->position = prev;
-				prev = temp;
-				current = current->next;
+			Node *current = snake->tail;
+			while (current->prev != NULL) {
+				current->position = current->prev->position;
+				current = current->prev;
 			}
 
 			/* Move snake */
 			snake->head->position = (Vector2){
-				snake->head->position.y + snake->direction.y, 
-				snake->head->position.x + snake->direction.x
+				snake->head->position.y += snake->direction.y, 
+				snake->head->position.x += snake->direction.x
 			};
 			
 			/* Paint snake */
@@ -262,9 +268,12 @@ int main(void) {
 				current = current->next;
 			}
 
-			/* Check for collion */
+			/* Paint apples */
+			mvwaddch(window, apple->position.y, apple->position.x, apple->body);
+
+			/* Check for self collion */
 			current = snake->head->next;
-			if (current == NULL) break;
+			//if (current == NULL) break;
 			while (current != NULL) {
 				if ((snake->head->position.y == current->position.y) &&
 					(snake->head->position.x == current->position.x)) {
@@ -274,7 +283,26 @@ int main(void) {
 				current = current->next;
 			}
 
-			free(current); 
+			/* Eat apple */ 
+			if ((snake->head->position.y == apple->position.y) &&
+				(snake->head->position.x == apple->position.x)) {
+				/* Grow snake */
+				Node *prev = snake->tail;
+				Node *current = malloc(sizeof(*current));
+				current->position = (Vector2){
+					prev->position.y + (snake->direction.y * -1),
+					prev->position.x + (snake->direction.x * -1)
+				};
+				current->next = NULL;
+				current->prev = prev;
+				prev->next = current;
+				snake->tail = current;
+				int y = rand() % (height - 1) + 1;
+				int x = rand() % (width - + 1) + 1; 
+				apple->position = (Vector2){y, x};
+			}
+			
+			free(current);
 			break;
 
 		case STATE_PAUSE:
